@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-ZBRcxdZ8.js";var t=e(),n=()=>(0,t.jsx)(`div`,{className:`flex items-center justify-center min-h-screen`,children:(0,t.jsx)(`div`,{className:`animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary`})});export{n as t};
