@@ -31,6 +31,9 @@ jobs:
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
 
+      - name: Crear 404.html para SPA routing
+        run: cp dist/index.html dist/404.html
+
       - name: Deploy a rama gh-pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:

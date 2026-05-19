@@ -35,7 +35,7 @@ class ApiClient {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('luxestay_user');
-      window.location.href = '/login';
+      window.location.href = import.meta.env.BASE_URL + 'login';
       return null;
     }
 
