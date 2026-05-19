@@ -73,7 +73,7 @@ export default function Register() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center">
-            <img src="/logoLuxeStay.webp" alt="LuxeStay" className="h-12 w-auto" />
+            <img src={`${import.meta.env.BASE_URL}logoLuxeStay.webp`} alt="LuxeStay" className="h-12 w-auto" />
           </Link>
           <h2 className="mt-4 text-2xl font-bold text-gray-900">Crea tu cuenta</h2>
           <p className="mt-1 text-sm text-gray-600">
