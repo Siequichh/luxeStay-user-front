@@ -30,7 +30,7 @@ const Header = () => {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link to="/">
-            <img src="/logoLuxeStay.webp" alt="LuxeStay" className="h-12 w-auto" />
+            <img src={`${import.meta.env.BASE_URL}logoLuxeStay.webp`} alt="LuxeStay" className="h-12 w-auto" />
           </Link>
 
           {/* Desktop Navigation */}
