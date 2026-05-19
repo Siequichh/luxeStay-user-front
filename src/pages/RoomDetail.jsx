@@ -1,18 +1,26 @@
 import { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { getRoomById, rooms } from '../data/roomsData';
 import RoomCard from '../components/room/RoomCard';
 import MapLocation from '../components/map/MapLocation';
 import OptimizedImage from '../components/common/OptimizedImage';
+import { useAuth } from '../context/AuthContext';
+import { bookingService } from '../services/bookingService';
 
 const RoomDetail = () => {
   const { id } = useParams();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const { user, isLoggedIn } = useAuth();
+
   const [selectedImage, setSelectedImage] = useState(0);
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [guests, setGuests] = useState(1);
   const [bookingType, setBookingType] = useState('night');
   const [timeSlot, setTimeSlot] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState('');
 
   const room = getRoomById(id) || rooms[0];
 
@@ -45,9 +53,56 @@ const RoomDetail = () => {
     );
   }
 
-  const handleBooking = (e) => {
+  const handleBooking = async (e) => {
     e.preventDefault();
-    alert(`Reserva solicitada para ${room.name}\nCheck-in: ${checkIn}\nCheck-out: ${checkOut}\nHuéspedes: ${guests}`);
+    setBookingError('');
+
+    if (!isLoggedIn) {
+      navigate('/login', { state: { from: { pathname: location.pathname } } });
+      return;
+    }
+
+    // Build guest detail from logged-in user
+    const nameParts = (user.fullName || '').trim().split(' ');
+    const firstName = nameParts[0] || user.email;
+    const lastName  = nameParts.slice(1).join(' ') || nameParts[0] || '';
+
+    // Build time fields for HOURLY booking
+    let checkInTime  = null;
+    let checkOutTime = null;
+    if (bookingType === 'hours' && timeSlot) {
+      const [start, end] = timeSlot.split('-');
+      checkInTime  = `${start}:00`;
+      checkOutTime = end === '00:00' ? '00:00:00' : `${end}:00`;
+    }
+
+    const payload = {
+      roomId:      Number(id),
+      bookingType: bookingType === 'night' ? 'NIGHTLY' : 'HOURLY',
+      checkInDate:  checkIn,
+      checkOutDate: bookingType === 'night' ? checkOut : null,
+      checkInTime,
+      checkOutTime,
+      numGuests:   guests,
+      numChildren: 0,
+      guestDetail: {
+        firstName,
+        lastName,
+        email:         user.email,
+        phone:         null,
+        saveForFuture: false,
+      },
+    };
+
+    setSubmitting(true);
+    try {
+      const booking = await bookingService.createBooking(payload);
+      navigate(`/booking/confirmation/${booking.referenceCode}`, { state: { booking } });
+    } catch (err) {
+      setBookingError(err.message || 'Error al crear la reserva. Intenta de nuevo.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -445,11 +500,22 @@ const RoomDetail = () => {
                   </div>
                 </div>
 
+                {bookingError && (
+                  <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    {bookingError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-lg hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98]"
+                  disabled={submitting}
+                  className="w-full bg-gradient-to-r from-primary to-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-lg hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  Confirmar Reserva
+                  {submitting
+                    ? 'Procesando…'
+                    : isLoggedIn
+                      ? 'Confirmar Reserva'
+                      : 'Iniciar sesión para reservar'}
                 </button>
               </form>
 

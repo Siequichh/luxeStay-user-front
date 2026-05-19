@@ -1,8 +1,16 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import RoomCard from '../components/room/RoomCard';
 import { rooms } from '../data/roomsData';
 
 const Rooms = () => {
+  const [searchParams] = useSearchParams();
+
+  const paramCheckIn   = searchParams.get('checkIn')  ?? '';
+  const paramCheckOut  = searchParams.get('checkOut') ?? '';
+  const paramGuests    = parseInt(searchParams.get('guests') ?? '1', 10);
+  const paramLocation  = searchParams.get('location') ?? '';
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [sortBy, setSortBy] = useState('featured');
@@ -15,9 +23,12 @@ const Rooms = () => {
     { id: 'presidential', name: 'Presidencial' }
   ];
 
+  const hasSearchContext = paramCheckIn || paramCheckOut || paramGuests > 1 || paramLocation;
+
   // Filtrar habitaciones según criterios
   const filteredRooms = rooms
     .filter(room => selectedCategory === 'all' || room.category === selectedCategory)
+    .filter(room => paramGuests <= 1 || room.guests >= paramGuests)
     .filter(room => {
       if (priceRange === 'all') return true;
       if (priceRange === 'budget') return room.price < 200;
@@ -123,6 +134,16 @@ const Rooms = () => {
 
           {/* Rooms Grid */}
           <div className="lg:col-span-3">
+            {/* Search context banner */}
+            {hasSearchContext && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-5 py-3 mb-5 flex flex-wrap gap-4 text-sm text-gray-700 items-center">
+                {paramLocation  && <span>📍 <strong>{paramLocation}</strong></span>}
+                {paramCheckIn   && <span>📅 Entrada: <strong>{paramCheckIn}</strong></span>}
+                {paramCheckOut  && <span>📅 Salida: <strong>{paramCheckOut}</strong></span>}
+                {paramGuests > 1 && <span>👥 <strong>{paramGuests}</strong> huéspedes</span>}
+              </div>
+            )}
+
             <div className="flex justify-between items-center mb-6">
               <p className="text-gray-600">
                 {filteredRooms.length} habitaciones encontradas

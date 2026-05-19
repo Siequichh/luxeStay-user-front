@@ -1,104 +1,95 @@
 import { config } from '../config/config';
 
-/**
- * Cliente HTTP para realizar peticiones a la API
- * Usa fetch nativo de JavaScript
- */
 class ApiClient {
   constructor(baseURL) {
     this.baseURL = baseURL;
   }
 
-  /**
-   * Realiza una petición GET
-   * @param {string} endpoint - Endpoint de la API
-   * @param {object} params - Parámetros de query
-   */
-  async get(endpoint, params = {}) {
-    const url = new URL(`${this.baseURL}${endpoint}`);
-
-    // Agregar parámetros de query
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== null) {
-        url.searchParams.append(key, params[key]);
-      }
-    });
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
+  _authHeaders() {
+    const token = localStorage.getItem('accessToken');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
   }
 
-  /**
-   * Realiza una petición POST
-   * @param {string} endpoint - Endpoint de la API
-   * @param {object} data - Datos a enviar
-   */
+  async _handleResponse(response) {
+    if (response.status === 204) return null;
+
+    if (response.status === 401) {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const res = await fetch(`${this.baseURL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+            return null; // caller should handle re-fetch if needed
+          }
+        } catch (_) {}
+      }
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('luxestay_user');
+      window.location.href = '/login';
+      return null;
+    }
+
+    let body;
+    try {
+      body = await response.json();
+    } catch (_) {
+      body = {};
+    }
+
+    if (!response.ok) {
+      throw new Error(body.message || `Error ${response.status}`);
+    }
+
+    return body;
+  }
+
+  async get(endpoint, params = {}) {
+    const url = new URL(`${this.baseURL}${endpoint}`);
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.append(k, v);
+    });
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this._authHeaders(),
+    });
+    return this._handleResponse(response);
+  }
+
   async post(endpoint, data = {}) {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this._authHeaders(),
       body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
+    return this._handleResponse(response);
   }
 
-  /**
-   * Realiza una petición PUT
-   * @param {string} endpoint - Endpoint de la API
-   * @param {object} data - Datos a actualizar
-   */
   async put(endpoint, data = {}) {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this._authHeaders(),
       body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
+    return this._handleResponse(response);
   }
 
-  /**
-   * Realiza una petición DELETE
-   * @param {string} endpoint - Endpoint de la API
-   */
   async delete(endpoint) {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this._authHeaders(),
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
+    return this._handleResponse(response);
   }
 }
 
-// Instancia del cliente API
 export const apiClient = new ApiClient(config.apiUrl);
