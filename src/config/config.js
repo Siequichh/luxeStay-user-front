@@ -12,6 +12,9 @@ export const config = {
     roomDetail: '/rooms/:id',
     booking: '/bookings',
     auth: '/auth',
-    search: '/rooms/search'
+    search: '/rooms',
+    profile: '/profile',
+    payments: '/payments',
+    reviews: '/reviews',
   }
 };

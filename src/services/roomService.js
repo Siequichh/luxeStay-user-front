@@ -2,145 +2,144 @@ import { config } from '../config/config';
 import { apiClient } from './api';
 import { rooms } from '../data/roomsData';
 
-/**
- * Servicio para gestionar habitaciones
- * Soporta modo MOCK y modo API real
- */
+/** Mapea RoomResponse del backend al formato que usan los componentes (mismo que mock). */
+function normalizeRoom(r) {
+  return {
+    id:            r.roomId,
+    name:          r.roomTypeName,
+    category:      r.category?.toLowerCase(),
+    categoryDisplay: r.categoryDisplay,
+    description:   r.description,
+    location:      r.hotelDistrict,
+    address:       r.hotelAddress,
+    hotelName:     r.hotelName,
+    hotelId:       r.hotelId,
+    coordinates:   (r.latitude != null && r.longitude != null)
+                     ? { lat: Number(r.latitude), lng: Number(r.longitude) }
+                     : null,
+    price:         r.basePriceNight,
+    pricePerHour:  r.basePriceHour,
+    guests:        r.maxGuests,
+    size:          r.areaSqm != null ? `${r.areaSqm}m²` : null,
+    image:         r.thumbnailUrl,
+    images:        r.images?.length ? r.images : (r.thumbnailUrl ? [r.thumbnailUrl] : []),
+    amenities:     r.amenities || [],
+    tags:          r.tags || [],
+    starRating:    r.starRating,
+    allowsVelocity: r.allowsVelocity,
+    roomTypeId:    r.roomTypeId,
+    roomNumber:    r.roomNumber,
+    floor:         r.floor,
+    status:        r.status,
+  };
+}
+
+/** Mapea los filtros del frontend al formato de query params que espera el backend. */
+function toApiParams(filters) {
+  const params = {};
+
+  // checkIn / checkOut requeridos por el backend — si no vienen, usar hoy/mañana
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const fmt = d => d.toISOString().split('T')[0];
+
+  params.checkIn  = filters.checkIn  || fmt(today);
+  params.checkOut = filters.checkOut || fmt(tomorrow);
+
+  if (filters.guests)   params.guests = filters.guests;
+  if (filters.category && filters.category !== 'all') params.category = filters.category.toUpperCase();
+  if (filters.velocityOnly) params.velocityOnly = true;
+  if (filters.location) params.location = filters.location;
+
+  // priceRange → maxPriceNight
+  if (filters.maxPriceNight) {
+    params.maxPriceNight = filters.maxPriceNight;
+  } else if (filters.priceRange === 'budget') {
+    params.maxPriceNight = 200;
+  } else if (filters.priceRange === 'mid') {
+    params.maxPriceNight = 400;
+  }
+
+  // sortBy: frontend usa 'price-low'/'price-high', backend usa 'price_asc'/'price_desc'
+  if (filters.sortBy === 'price-low')  params.sortBy = 'price_asc';
+  else if (filters.sortBy === 'price-high') params.sortBy = 'price_desc';
+  else if (filters.sortBy === 'rating')     params.sortBy = 'rating';
+
+  return params;
+}
+
+// ponytail: sin fallback a mock cuando la API falla — los errores deben verse,
+// no esconderse detrás de habitaciones fantasma. Mock solo si VITE_USE_MOCK_DATA=true.
 class RoomService {
-  /**
-   * Obtiene todas las habitaciones
-   * @param {object} filters - Filtros opcionales (category, priceRange, sortBy)
-   * @returns {Promise<Array>} Lista de habitaciones
-   */
   async getAllRooms(filters = {}) {
     if (config.useMockData) {
-      // Modo MOCK: Devuelve datos locales
       return this._filterMockRooms(rooms, filters);
-    } else {
-      // Modo API: Consulta al backend
-      try {
-        const response = await apiClient.get(config.endpoints.rooms, filters);
-        return response.data || response;
-      } catch (error) {
-        console.error('Error fetching rooms:', error);
-        // Fallback a datos mock en caso de error
-        return this._filterMockRooms(rooms, filters);
-      }
     }
+    const response = await apiClient.get(config.endpoints.rooms, toApiParams(filters));
+    const list = Array.isArray(response) ? response : (response?.content || response?.data || []);
+    return list.map(normalizeRoom);
   }
 
-  /**
-   * Obtiene una habitación por ID
-   * @param {number|string} id - ID de la habitación
-   * @returns {Promise<object>} Datos de la habitación
-   */
   async getRoomById(id) {
     if (config.useMockData) {
-      // Modo MOCK: Busca en datos locales
-      const room = rooms.find(r => r.id === parseInt(id));
-      return room || null;
-    } else {
-      // Modo API: Consulta al backend
-      try {
-        const endpoint = config.endpoints.roomDetail.replace(':id', id);
-        const response = await apiClient.get(endpoint);
-        return response.data || response;
-      } catch (error) {
-        console.error(`Error fetching room ${id}:`, error);
-        // Fallback a datos mock
-        return rooms.find(r => r.id === parseInt(id)) || null;
-      }
+      return rooms.find(r => r.id === parseInt(id)) || null;
     }
+    const response = await apiClient.get(`${config.endpoints.rooms}/${id}`);
+    return normalizeRoom(response);
   }
 
-  /**
-   * Busca habitaciones según criterios
-   * @param {object} searchParams - Parámetros de búsqueda
-   * @returns {Promise<Array>} Habitaciones que coinciden
-   */
   async searchRooms(searchParams) {
+    return this.getAllRooms(searchParams);
+  }
+
+  /** Disponibilidad puntual para la habitación del detalle, según fechas/horario elegidos. */
+  async checkAvailability(roomId, { checkIn, checkOut, bookingType, checkInTime, checkOutTime }) {
+    if (config.useMockData) return { available: true };
+    const params = { checkIn, bookingType: bookingType || 'NIGHTLY' };
+    if (checkOut)     params.checkOut = checkOut;
+    if (checkInTime)  params.checkInTime = checkInTime;
+    if (checkOutTime) params.checkOutTime = checkOutTime;
+    return apiClient.get(`${config.endpoints.rooms}/${roomId}/availability`, params);
+  }
+
+  async getSimilarRooms(roomId, limit = 3) {
     if (config.useMockData) {
-      // Modo MOCK: Filtra datos locales
-      return this._filterMockRooms(rooms, searchParams);
-    } else {
-      // Modo API: Consulta al backend
-      try {
-        const response = await apiClient.get(config.endpoints.search, searchParams);
-        return response.data || response;
-      } catch (error) {
-        console.error('Error searching rooms:', error);
-        return this._filterMockRooms(rooms, searchParams);
-      }
+      const room = rooms.find(r => r.id === parseInt(roomId));
+      if (!room) return [];
+      return rooms
+        .filter(r => r.id !== parseInt(roomId) && r.category === room.category)
+        .slice(0, limit);
+    }
+    try {
+      const response = await apiClient.get(`${config.endpoints.rooms}/${roomId}/similar`, { limit });
+      const list = Array.isArray(response) ? response : (response?.data || []);
+      return list.map(normalizeRoom);
+    } catch {
+      // Similares es contenido secundario — si falla, lista vacía sin romper la página
+      return [];
     }
   }
 
-  /**
-   * Filtra habitaciones mock según criterios
-   * @private
-   */
   _filterMockRooms(roomsList, filters) {
     let filtered = [...roomsList];
-
-    // Filtrar por categoría
     if (filters.category && filters.category !== 'all') {
       filtered = filtered.filter(room => room.category === filters.category);
     }
-
-    // Filtrar por rango de precio
-    if (filters.priceRange) {
-      if (filters.priceRange === 'budget') {
-        filtered = filtered.filter(room => room.price < 200);
-      } else if (filters.priceRange === 'mid') {
-        filtered = filtered.filter(room => room.price >= 200 && room.price < 400);
-      } else if (filters.priceRange === 'luxury') {
-        filtered = filtered.filter(room => room.price >= 400);
-      }
+    if (filters.priceRange === 'budget') {
+      filtered = filtered.filter(room => room.price < 200);
+    } else if (filters.priceRange === 'mid') {
+      filtered = filtered.filter(room => room.price >= 200 && room.price < 400);
+    } else if (filters.priceRange === 'luxury') {
+      filtered = filtered.filter(room => room.price >= 400);
     }
-
-    // Ordenar
     if (filters.sortBy === 'price-low') {
       filtered.sort((a, b) => a.price - b.price);
     } else if (filters.sortBy === 'price-high') {
       filtered.sort((a, b) => b.price - a.price);
     }
-
-    // Simular delay de red (opcional, para testing)
-    return new Promise(resolve => {
-      setTimeout(() => resolve(filtered), 100);
-    });
-  }
-
-  /**
-   * Obtiene habitaciones similares
-   * @param {number|string} roomId - ID de la habitación de referencia
-   * @param {number} limit - Cantidad de habitaciones a devolver
-   * @returns {Promise<Array>} Habitaciones similares
-   */
-  async getSimilarRooms(roomId, limit = 3) {
-    const room = await this.getRoomById(roomId);
-    if (!room) return [];
-
-    if (config.useMockData) {
-      // Modo MOCK: Filtra por misma categoría
-      return rooms
-        .filter(r => r.id !== parseInt(roomId) && r.category === room.category)
-        .slice(0, limit);
-    } else {
-      // Modo API: Consulta al backend
-      try {
-        const response = await apiClient.get(`${config.endpoints.rooms}/${roomId}/similar`, {
-          limit
-        });
-        return response.data || response;
-      } catch (error) {
-        console.error('Error fetching similar rooms:', error);
-        return rooms
-          .filter(r => r.id !== parseInt(roomId) && r.category === room.category)
-          .slice(0, limit);
-      }
-    }
+    return new Promise(resolve => setTimeout(() => resolve(filtered), 100));
   }
 }
 
-// Exportar instancia única del servicio
 export const roomService = new RoomService();
