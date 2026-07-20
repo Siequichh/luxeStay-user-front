@@ -30,6 +30,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_MP_PUBLIC_KEY: ${{ vars.VITE_MP_PUBLIC_KEY }}
 
       - name: Crear 404.html para SPA routing
         run: cp dist/index.html dist/404.html
