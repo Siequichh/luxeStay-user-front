@@ -50,7 +50,7 @@ const Rooms = () => {
         <div className="absolute -bottom-32 -left-16 w-80 h-80 rounded-full bg-white/5 pointer-events-none" aria-hidden="true"></div>
         <div className="container mx-auto px-4 text-center relative">
           <span className="inline-block text-accent text-xs font-bold tracking-[0.3em] uppercase mb-3">
-            LuxeStay Collection
+            LuxeStay
           </span>
           <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">
             Nuestras Habitaciones

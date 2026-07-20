@@ -38,7 +38,7 @@ const RoomDetail = () => {
 
   // Disponibilidad real de ESTA habitación para las fechas/horario elegidos —
   // sin esto, la habitación siempre se mostraba como "Disponible" sin verificar.
-  const [availability, setAvailability] = useState('checking'); // 'checking' | 'available' | 'unavailable'
+  const [availability, setAvailability] = useState('checking'); // 'checking' | 'available' | 'unavailable' | 'idle'
 
   // Datos del huésped — precargados desde el perfil del usuario logueado
   const [guest, setGuest] = useState({ firstName: '', lastName: '', email: '', phone: '' });
@@ -86,7 +86,8 @@ const RoomDetail = () => {
   useEffect(() => {
     if (!room) return;
     if (bookingType === 'night' && (!checkIn || !checkOut || checkOut <= checkIn)) return;
-    if (bookingType === 'hours' && !timeSlot) { setAvailability('unavailable'); return; }
+    // Aún no se elige el bloque horario: estado neutro, NO "no disponible" (no está reservada).
+    if (bookingType === 'hours' && !timeSlot) { setAvailability('idle'); return; }
 
     setAvailability('checking');
     const params = bookingType === 'night'
@@ -289,7 +290,7 @@ const RoomDetail = () => {
                   height={500}
                   quality={85}
                   priority={selectedImage === 0}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   blur={true}
                 />
                 {room.images && room.images.length > 1 && (
@@ -339,6 +340,7 @@ const RoomDetail = () => {
                           alt={`Miniatura ${index + 1}`}
                           width={150}
                           quality={75}
+                          objectFit="cover"
                           className="w-full h-full object-cover"
                           blur={false}
                         />
@@ -430,10 +432,12 @@ const RoomDetail = () => {
                 <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                   availability === 'unavailable' ? 'bg-red-100 text-red-700'
                     : availability === 'checking' ? 'bg-gray-100 text-gray-500'
+                    : availability === 'idle' ? 'bg-gray-100 text-gray-500'
                     : 'bg-green-100 text-green-700'
                 }`}>
                   {availability === 'unavailable' ? 'No disponible'
                     : availability === 'checking' ? 'Verificando…'
+                    : availability === 'idle' ? 'Elige un horario'
                     : 'Disponible'}
                 </span>
               </div>
@@ -650,18 +654,20 @@ const RoomDetail = () => {
 
                 <button
                   type="submit"
-                  disabled={submitting || availability === 'unavailable' || availability === 'checking'}
+                  disabled={submitting || availability === 'unavailable' || availability === 'checking' || availability === 'idle'}
                   className="w-full bg-gradient-to-r from-primary to-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-600 hover:to-primary-700 transition-all shadow-lg hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {submitting
                     ? 'Procesando…'
-                    : availability === 'unavailable'
-                      ? 'No disponible'
-                      : availability === 'checking'
-                        ? 'Verificando disponibilidad…'
-                        : isLoggedIn
-                          ? 'Confirmar Reserva'
-                          : 'Iniciar sesión para reservar'}
+                    : availability === 'idle'
+                      ? 'Selecciona un horario'
+                      : availability === 'unavailable'
+                        ? 'No disponible'
+                        : availability === 'checking'
+                          ? 'Verificando disponibilidad…'
+                          : isLoggedIn
+                            ? 'Confirmar Reserva'
+                            : 'Iniciar sesión para reservar'}
                 </button>
               </form>
 
