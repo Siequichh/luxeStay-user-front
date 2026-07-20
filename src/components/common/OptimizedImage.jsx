@@ -11,7 +11,7 @@ const OptimizedImage = ({
   height,
   className = '',
   priority = false, // Para imágenes above-the-fold
-  objectFit = 'contain',
+  objectFit = 'cover',
   quality = 80,
   blur = true, // Mostrar placeholder blur
   onLoad,
@@ -91,10 +91,6 @@ const OptimizedImage = ({
     <div
       ref={imgRef}
       className={`relative overflow-hidden bg-gray-200 ${className}`}
-      style={{
-        width: width ? `${width}px` : '100%',
-        height: height ? `${height}px` : '100%'
-      }}
     >
       {/* Placeholder blur */}
       {blur && placeholderSrc && !isLoaded && (

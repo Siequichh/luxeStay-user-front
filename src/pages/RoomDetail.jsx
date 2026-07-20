@@ -290,7 +290,7 @@ const RoomDetail = () => {
                   height={500}
                   quality={85}
                   priority={selectedImage === 0}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                   blur={true}
                 />
                 {room.images && room.images.length > 1 && (
