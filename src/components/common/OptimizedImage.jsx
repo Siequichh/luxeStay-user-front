@@ -11,7 +11,7 @@ const OptimizedImage = ({
   height,
   className = '',
   priority = false, // Para imágenes above-the-fold
-  objectFit = 'cover',
+  objectFit = 'contain',
   quality = 80,
   blur = true, // Mostrar placeholder blur
   onLoad,
