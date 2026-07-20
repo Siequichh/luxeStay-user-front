@@ -1,0 +1,108 @@
+name: CI/CD - LuxeStay Frontend
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ── ETAPA 1: BUILD + LINT ─────────────────────────────────────────────────
+  build:
+    name: Build & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Build producción
+        run: npm run build
+        env:
+          VITE_USE_MOCK_DATA: true
+          VITE_APP_NAME: LuxeStay
+          VITE_APP_VERSION: 2.0.0
+
+      - name: Subir artefacto dist/
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  # ── ETAPA 2: TEST ─────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Verificar estructura del build
+        run: |
+          npm run build
+          echo "✅ Build exitoso — verificando artefactos..."
+          ls -lh dist/
+        env:
+          VITE_USE_MOCK_DATA: true
+          VITE_APP_NAME: LuxeStay
+          VITE_APP_VERSION: 2.0.0
+
+  # ── ETAPA 3: DEPLOY a GitHub Pages ────────────────────────────────────────
+  deploy:
+    name: Deploy → GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build producción
+        run: npm run build
+        env:
+          VITE_USE_MOCK_DATA: true
+          VITE_APP_NAME: LuxeStay
+          VITE_APP_VERSION: 2.0.0
+
+      - name: Deploy a GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          commit_message: "deploy: versión ${{ github.sha }}"

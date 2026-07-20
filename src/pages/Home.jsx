@@ -2,33 +2,35 @@ import { Link } from 'react-router-dom';
 import SearchBar from '../components/search/SearchBar';
 import FeatureCard from '../components/room/FeatureCard';
 import RoomCard from '../components/room/RoomCard';
-import { rooms } from '../data/roomsData';
+import { useRooms } from '../hooks/useRooms';
 
 const Home = () => {
   const features = [
     {
-      icon: '⚡',
+      icon: 'bolt',
       title: 'Reserva Rápida',
       description: 'Proceso de reserva en menos de 3 minutos, simple e intuitivo.'
     },
     {
-      icon: '🕐',
+      icon: 'clock',
       title: 'Luxe Velocity',
       description: 'Reserva por horas con bloques flexibles de 4 horas según tu necesidad.'
     },
     {
-      icon: '💳',
+      icon: 'card',
       title: 'Pago Seguro',
       description: 'Sistema de pagos confiable con confirmación inmediata.'
     },
     {
-      icon: '📱',
+      icon: 'qr',
       title: 'Check-in Digital',
       description: 'Código QR único para check-in rápido sin colas ni esperas.'
     }
   ];
 
-  const featuredRooms = rooms.slice(0, 3);
+  // Destacadas desde el backend: las 3 más económicas disponibles hoy
+  const { rooms: allRooms, loading: loadingRooms } = useRooms({});
+  const featuredRooms = allRooms.slice(0, 3);
 
   return (
     <div className="min-h-screen">
@@ -125,11 +127,29 @@ const Home = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {featuredRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
-            ))}
-          </div>
+          {loadingRooms ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+                  <div className="h-56 bg-gray-200" />
+                  <div className="p-5 space-y-3">
+                    <div className="h-5 bg-gray-200 rounded w-2/3" />
+                    <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : featuredRooms.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {featuredRooms.map((room) => (
+                <RoomCard key={room.id} room={room} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500">
+              No hay habitaciones disponibles por el momento.
+            </p>
+          )}
 
           <div className="text-center mt-10 sm:mt-12">
             <Link

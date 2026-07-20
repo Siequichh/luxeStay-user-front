@@ -13,6 +13,7 @@ const Register            = lazy(() => import('./pages/Register'));
 const MyBookings          = lazy(() => import('./pages/MyBookings'));
 const BookingConfirmation = lazy(() => import('./pages/BookingConfirmation'));
 const OAuth2Callback      = lazy(() => import('./pages/OAuth2Callback'));
+const Profile             = lazy(() => import('./pages/Profile'));
 
 function PrivateRoute({ children }) {
   const { isLoggedIn } = useAuth();
@@ -79,6 +80,19 @@ function AppRoutes() {
               <div className="flex flex-col min-h-screen">
                 <Header />
                 <main className="flex-grow"><BookingConfirmation /></main>
+                <Footer />
+              </div>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <div className="flex flex-col min-h-screen">
+                <Header />
+                <main className="flex-grow"><Profile /></main>
                 <Footer />
               </div>
             </PrivateRoute>

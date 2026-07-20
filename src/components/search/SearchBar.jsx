@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUbigeo } from '../../hooks/useUbigeo';
 
+const todayIso = () => new Date().toISOString().split('T')[0];
+const addDaysIso = (iso, days) => {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
 const SearchBar = () => {
   const navigate = useNavigate();
   const {
@@ -12,32 +19,57 @@ const SearchBar = () => {
   } = useUbigeo();
 
   const [searchData, setSearchData] = useState({
-    checkIn:  '',
-    checkOut: '',
+    checkIn:  todayIso(),
+    checkOut: addDaysIso(todayIso(), 1),
     guests:   1,
   });
+  const [searchError, setSearchError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (searchData.checkIn)    params.set('checkIn',  searchData.checkIn);
-    if (searchData.checkOut)   params.set('checkOut', searchData.checkOut);
-    if (searchData.guests > 1) params.set('guests',   searchData.guests);
+    setSearchError('');
 
-    const locationValue = selectedDist
-      ? selectedDist.districtName
-      : selectedProv
-        ? (provinces.find(p => p.code === selectedProv)?.name ?? '')
-        : selectedDep
-          ? (departments.find(d => d.code === selectedDep)?.name ?? '')
-          : '';
-    if (locationValue) params.set('location', locationValue);
+    // Validación antes de buscar
+    if (!searchData.checkIn || !searchData.checkOut) {
+      setSearchError('Selecciona las fechas de entrada y salida.');
+      return;
+    }
+    if (searchData.checkIn < todayIso()) {
+      setSearchError('La fecha de entrada no puede ser anterior a hoy.');
+      return;
+    }
+    if (searchData.checkOut <= searchData.checkIn) {
+      setSearchError('La fecha de salida debe ser posterior a la de entrada.');
+      return;
+    }
+    // Si empezó a elegir ubicación, debe completarla hasta distrito
+    if (selectedDep && !selectedProv) {
+      setSearchError('Selecciona la provincia para completar la ubicación.');
+      return;
+    }
+    if (selectedProv && !selectedDist) {
+      setSearchError('Selecciona el distrito para completar la ubicación.');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set('checkIn',  searchData.checkIn);
+    params.set('checkOut', searchData.checkOut);
+    if (searchData.guests > 1) params.set('guests', searchData.guests);
+    if (selectedDist) params.set('location', selectedDist.districtName);
 
     navigate(`/rooms?${params.toString()}`);
   };
 
   const handleChange = (field, value) => {
-    setSearchData(prev => ({ ...prev, [field]: value }));
+    setSearchData(prev => {
+      const next = { ...prev, [field]: value };
+      // Si la entrada queda igual o después que la salida, autoajustar salida a +1 día
+      if (field === 'checkIn' && next.checkOut <= value) {
+        next.checkOut = addDaysIso(value, 1);
+      }
+      return next;
+    });
   };
 
   const selectBase =
@@ -133,6 +165,7 @@ const SearchBar = () => {
               <input
                 type="date"
                 value={searchData.checkIn}
+                min={todayIso()}
                 onChange={(e) => handleChange('checkIn', e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
               />
@@ -153,6 +186,7 @@ const SearchBar = () => {
               <input
                 type="date"
                 value={searchData.checkOut}
+                min={addDaysIso(searchData.checkIn || todayIso(), 1)}
                 onChange={(e) => handleChange('checkOut', e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
               />
@@ -201,6 +235,17 @@ const SearchBar = () => {
             </button>
           </div>
         </div>
+
+        {/* Mensaje de validación */}
+        {searchError && (
+          <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm animate-[fadeIn_0.2s_ease]">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {searchError}
+          </div>
+        )}
 
       </form>
     </div>

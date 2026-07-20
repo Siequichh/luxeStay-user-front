@@ -1,6 +1,125 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiClient } from '../../services/api';
+
+const NOTIF_ICONS = {
+  BOOKING_CONFIRMED: '✅',
+  BOOKING_CANCELLED: '❌',
+  PAYMENT_COMPLETED: '💳',
+  REMINDER:          '⭐',
+  NEW_BOOKING:       '🔔',
+};
+
+const timeAgo = (iso) => {
+  if (!iso) return '';
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1)   return 'ahora';
+  if (mins < 60)  return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `hace ${hrs} h`;
+  return `hace ${Math.floor(hrs / 24)} d`;
+};
+
+function NotificationBell() {
+  const [open, setOpen]   = useState(false);
+  const [data, setData]   = useState({ unread: 0, items: [] });
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  const load = () => apiClient.get('/notifications').then(d => d && setData(d)).catch(() => {});
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 15000); // ponytail: polling 15s, websockets si se necesita tiempo real
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const patch = (url) => {
+    const token = localStorage.getItem('accessToken');
+    return fetch(`${apiClient.baseURL}${url}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  };
+
+  const markAll = async () => {
+    await patch('/notifications/read-all');
+    setData(d => ({ unread: 0, items: d.items.map(i => ({ ...i, read: true })) }));
+  };
+
+  const handleClick = async (n) => {
+    if (!n.read) {
+      await patch(`/notifications/${n.id}/read`);
+      setData(d => ({
+        unread: Math.max(0, d.unread - 1),
+        items: d.items.map(i => i.id === n.id ? { ...i, read: true } : i),
+      }));
+    }
+    setOpen(false);
+    navigate('/my-bookings');
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="relative text-gray-600 hover:text-primary transition-colors p-1"
+        aria-label="Notificaciones"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {data.unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {data.unread > 9 ? '9+' : data.unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-900">Notificaciones</p>
+            {data.unread > 0 && (
+              <button onClick={markAll} className="text-xs text-primary hover:underline">
+                Marcar todas leídas
+              </button>
+            )}
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {data.items.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-gray-400">Sin notificaciones</p>
+            ) : data.items.map(n => (
+              <button
+                key={n.id}
+                onClick={() => handleClick(n)}
+                className={`w-full px-4 py-3 border-b border-gray-50 text-left hover:bg-gray-50 transition-colors ${n.read ? '' : 'bg-primary/5'}`}
+              >
+                <div className="flex gap-2.5">
+                  <span className="text-lg leading-none mt-0.5">{NOTIF_ICONS[n.type] ?? '🔔'}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-900">{n.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.createdAt)}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -49,6 +168,8 @@ const Header = () => {
               </Link>
             ))}
 
+            {isLoggedIn && <NotificationBell />}
+
             {isLoggedIn ? (
               /* User dropdown */
               <div className="relative">
@@ -84,6 +205,13 @@ const Header = () => {
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       Mis Reservas
+                    </Link>
+                    <Link
+                      to="/profile"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Mi Perfil
                     </Link>
                     <button
                       onClick={handleLogout}
