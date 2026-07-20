@@ -1,0 +1,1 @@
+import{n as e,t}from"./api-BXOFxq4K.js";var n={getProfile(){return t.get(e.endpoints.profile)},updateProfile(n){return t.put(e.endpoints.profile,n)},changePassword(n){return t.put(e.endpoints.profile+`/password`,n)}};export{n as t};
